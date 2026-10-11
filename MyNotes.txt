@@ -74,6 +74,14 @@ function reset_token_for(string $email, ?string $day = null): string
 
 This adds 16 bytes of entropy.
 
+I also had to fix the consume_reset_token function, because it starts with a redundance check where $expected shoudl equal the user token,
+but $expected it regenerated from reset_token_for, which is now random and will never pass.
+Since the code after this check just compares the user token to the one stored in the DB for the user, the first check was redundant and
+can just be removed.
+I also removed the delayed check since the token is no longer determinstic anyways (token generation still uses the date, but only as some
+extra entropy, and does not really matter).
+
+
 From research, normal PC can generate around 400 million sha1 hashes a second, which lowers signifiganly to around 40 - 400 thousand
  when you need to store the results (still far faster than api request)
 Ealier I said that the ceiling for attempts was around 2000 per second, with an attack time of (my best guess) 5 seconds, as 10,000 shoudl
