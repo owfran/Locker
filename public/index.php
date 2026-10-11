@@ -64,11 +64,13 @@ if ($path === "/forgot" && $method === "GET") {
 if ($path === "/forgot" && $method === "POST") {
     $email = strtolower(trim((string)($_POST["email"] ?? "")));
     if (find_user_by_email($email)) {
-        issue_reset_token($email);
+        $token = issue_reset_token($email); //added debug
+        //issue_reset_token($email);// original
     }
     render("forgot", [
         "title" => "Reset password",
-        "notice" => "If that address is in Locker, a reset link was queued for campus mail. Tokens expire at the end of the calendar day.",
+        //"notice" => "If that address is in Locker, a reset link was queued for campus mail. Tokens expire at the end of the calendar day.", //original
+        "notice" => "debug, need to view token to test function: " . htmlspecialchars($token),// added debug
     ]);
 }
 

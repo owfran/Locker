@@ -1,26 +1,97 @@
-
+Note:
+dockerfile RUN command changed because Render would miss requirements
+RUN apt-get update && apt-get install -y \
+    libsqlite3-dev \
+    && docker-php-ext-install pdo_sqlite
 ----------------------------------------------------------------------------------------------------
 - how a password becomes the value stored in SQLite
+When a user creates a new user in the DB, it stores their password by hashing it with SHA256 first and then putting that into the database.
+When logging in, index.php has a function that checks if the userID input matches with the hash of the provided password, and then logs
+them in which creates a 'session'
 
 ----------------------------------------------------------------------------------------------------
 - what happens after someone clicks “Forgot password”
+When the click 'forgot password' and put in their email, the system creates a reset token and adds it and the email (if exists) to
+the reset_tokens table.
+I do not believe there is any logic for actually sending out an email with the token depsite a message saying there is. An admin likely
+reads the table and manually sends out reset token emails. 
+The token generation is poor, since it is just SHA1 of the email concatinated with the day, which is very predicable since emails are easy
+to find. The logic for using the reset token does not alert to multiple tries to reset a specific email, and could be brute forced without
+alert.
+
 
 ----------------------------------------------------------------------------------------------------
 - how vault rows are scoped to an account
+When a user adds an item to the vault, their ID is used as a col in the row. When a user goes to view their vault, vault.php funciton
+vault_items_for only returns items where the current userID matches the vault items.
 
 ----------------------------------------------------------------------------------------------------
 - who the advisor account is for, even if you cannot sign in as them yet
+Advisor appears to be someone in charge of giving a reset pin to students.
+There is no way to set a new users role to 'advisor', so they may be the admin of the website aswell.
+new users are always given role = "member"
 
 ----------------------------------------------------------------------------------------------------
 -Then look for a security defect in the running system
+Since the system never sends the reset token email, there would be no way to exploit where the token gets sent to. 
+And token generation and storage happens inside the system.
+But the reset token is generated poorly, using SHA1( email || date), which is mostly predictable. 
+The website also does not contain any advanced protection like rate limiting or alerting to brute force attempts on the login
+or password reset (brute force the reset is worse since user can make good passwords that take to long to guess, but the reset input is predictable.)
+
+
+After the quick research, the limiting factor between api post reuests and sha1 hash generation is the post reuqest, maxing at 50 - 2000
+requests per second. The guessability of the input to the sha1 hash is intuioion I dont have, but given that email is nto secret but easy
+to use, and te system date being a common input in may programs, I would guess that writing a program to automate sha1 inputs would
+catch a correct hash very early. Even considering the slow end of 50 guesses per second, you could do 1 million guesses in 2 weeks on just 1 computer.
+
+Worst of all once you know th input to 1 account, every other account reset is broken instantly.
 
 ----------------------------------------------------------------------------------------------------
 -Document how to trigger it
- 
+ In a test, I used the user ("maya@campus.edu", "Maya Chen", "campus123", "member")
+ By going to forgot password and inputting maya@campus.edu, the system generated a valid reset token.
+ Next I went to sha1-online (because im lazy) and input maya@campus.edu|2026-10-11, and got a hash back.
+ I went to the locker website while logged out, and went to forgot password, and input the email and the hash and got in first try.
+
 ----------------------------------------------------------------------------------------------------
- 
- 
 -And patch it without breaking normal sign-in
+Because the exploit if in the guessability of sha1 inputs, I simply make guessing it very hard.
+I change the original function:
+function reset_token_for(string $email, ?string $day = null): string
+{
+    $day = $day ?? gmdate("Y-m-d");
+    return sha1(strtolower($email) . "|" . $day);
+}
+
+To:
+function reset_token_for(string $email, ?string $day = null): string
+{
+    $day = $day ?? gmdate("Y-m-d");
+    $random = bin2hex(random_bytes(16));
+    return sha1($random . "|" . strtolower($email) . "|" . $day);
+}
+
+This adds 16 bytes of entropy.
+
+From research, normal PC can generate around 400 million sha1 hashes a second, which lowers signifiganly to around 40 - 400 thousand
+ when you need to store the results (still far faster than api request)
+Ealier I said that the ceiling for attempts was around 2000 per second, with an attack time of (my best guess) 5 seconds, as 10,000 shoudl
+be way more than enough guesses even with extra deterministic inputs..
+But now with 128 bits of entropy, the security level is multiplied by 2^128, which is about 3.4 * 10^38 (the orinial input of email|day is an 
+irrelivent multiplier in comparison), and has an average attack success of 1 in 3.4*10^37.
+Adding the entropy to the SHA1 guesses changes the attack ceiling from the api speed to the SHA1 guesses. The number of guesses needed
+changed from 10,000 to 3.4*10^37 which now has an attack time of about 1.7*10^27 seconds
+
+
+
+
+
+
+
+
+
+
 
 
 
