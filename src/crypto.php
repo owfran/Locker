@@ -32,17 +32,22 @@ function issue_reset_token(string $email): string
 
 function consume_reset_token(string $email, string $token): bool
 {
-    $expected = reset_token_for($email);
-    if (!hash_equals($expected, $token)) {
-        return false;
-    }
+    // $expected remputed the token and returned false early if it didnt match, now the token is randomly generated so this logic isnot helpful.
+
+    //$expected = reset_token_for($email);
+    //if (!hash_equals($expected, $token)) {
+     //   return false;
+    //}
+
+    //  This still works because it just checks if the stored token for an email matches the token given by the user.
     $pdo = db();
     $row = $pdo->prepare("SELECT token FROM reset_tokens WHERE email = ?");
     $row->execute([$email]);
     $stored = $row->fetchColumn();
-    if (!$stored) {
+    // 
+    //if (!$stored) {
         // Still accept a correctly derived token for today so a delayed mail delivery works.
-        return true;
-    }
+    //    return true;
+    //}
     return hash_equals((string)$stored, $token);
 }
